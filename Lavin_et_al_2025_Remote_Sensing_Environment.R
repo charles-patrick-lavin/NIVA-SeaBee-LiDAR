@@ -2,7 +2,7 @@
 # (Zostera marina) habitat using drone-borne LiDAR 
 
 
-# Charles P. Lavin 1, Toms Buls 2, Hege Gundersen 1, Kristina Oie Kvile 1, Cyvind Tangen Cdegaard 1, Robert Noddebo Poulsen 2, Kasper Hancke 1 
+# Charles P. Lavin 1, Toms Buls 2, Robert Noddebo Poulsen 2, Hege Gundersen 1, Kristina Oie Kvile 1, Cyvind Tangen Cdegaard 1, Kasper Hancke 1 
 
 # 1 Norwegian Institute for Water Research (NIVA), Okernveien 94, 0579 Oslo, Norway 
 # 2 SpectroFly ApS, Markstien 2, 4640 Faxe, Denmark 
@@ -343,7 +343,8 @@ rf_model <- randomForest(
   classification ~ NN_Distance + vegetation_prob + R + G + B,  # Features
   data = training_data,
   ntree = 40,  # Optimal number of trees
-  mtry = 2)
+  mtry = 2,
+  importance = TRUE)  # Enable both MeanDecreaseAccuracy and MeanDecreaseGini
 
 # Predict the classifications for the testing data
 test_predictions <- predict(rf_model, newdata = testing_data)
@@ -430,16 +431,18 @@ S_Figure_3A
 
 
 # 2. Extract variable importance data from the Random Forest model
+# Using MeanDecreaseAccuracy (permutation importance) - more robust than MeanDecreaseGini
 importance_data <- data.frame(
   Variable = rownames(rf_model$importance),
-  Importance = rf_model$importance[,1]  # MeanDecreaseGini
+  MeanDecreaseAccuracy = rf_model$importance[, "MeanDecreaseAccuracy"],  # Permutation importance
+  MeanDecreaseGini = rf_model$importance[, "MeanDecreaseGini"]  # Keep for comparison
 )
 
-# Plot the variable importance
-S_Figure_3C <- ggplot(importance_data, aes(x = reorder(Variable, Importance), y = Importance)) +
+# Plot the variable importance using MeanDecreaseAccuracy
+S_Figure_3C <- ggplot(importance_data, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
   geom_bar(stat = "identity") +
   coord_flip() +
-  labs(title = "50 m LiDAR", x = "Variable", y = "Mean Decrease Gini") +
+  labs(title = "50 m LiDAR", x = "Variable", y = "Mean Decrease Accuracy") +
   theme_classic() +
   theme(
     plot.title = element_text(size=20),
@@ -453,7 +456,6 @@ S_Figure_3C <- ggplot(importance_data, aes(x = reorder(Variable, Importance), y 
     return(x)})
 
 S_Figure_3C
-
 
 
 # Now, predict classification on entire dataset from RF model
@@ -860,7 +862,8 @@ rf_model <- randomForest(
   classification ~ NN_Distance + vegetation_prob + R + G + B,  # Features
   data = training_data,
   ntree = 40,  # Optimal number of trees
-  mtry = 1)
+  mtry = 1,
+  importance = TRUE)  # Enable both MeanDecreaseAccuracy and MeanDecreaseGini
 
 # Predict the classifications for the testing data
 test_predictions <- predict(rf_model, newdata = testing_data)
@@ -952,16 +955,18 @@ S_Figure_3B
 
 
 # 2. Extract variable importance data from the Random Forest model
+# Using MeanDecreaseAccuracy (permutation importance) - more robust than MeanDecreaseGini
 importance_data <- data.frame(
   Variable = rownames(rf_model$importance),
-  Importance = rf_model$importance[,1]  # MeanDecreaseGini
+  MeanDecreaseAccuracy = rf_model$importance[, "MeanDecreaseAccuracy"],  # Permutation importance
+  MeanDecreaseGini = rf_model$importance[, "MeanDecreaseGini"]  # Keep for comparison
 )
 
-# Plot the variable importance
-S_Figure_3D <- ggplot(importance_data, aes(x = reorder(Variable, Importance), y = Importance)) +
+# Plot the variable importance using MeanDecreaseAccuracy
+S_Figure_3D <- ggplot(importance_data, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
   geom_bar(stat = "identity") +
   coord_flip() +
-  labs(title = "25 m LiDAR", x = "", y = "Mean Decrease Gini") +
+  labs(title = "25 m LiDAR", x = "", y = "Mean Decrease Accuracy") +
   theme_classic() +
   theme(
     plot.title = element_text(size = 20),
@@ -988,7 +993,7 @@ S_Figure_3 <- ggarrange(S_Figure_3A, S_Figure_3B,
 S_Figure_3
 
 # Save the arranged figure as a .tif file
-#ggsave("S_Figure_3.png", plot = S_Figure_3, device = "png", width = 15, height = 8, dpi = 300)
+#ggsave("S_Figure_3_new.png", plot = S_Figure_3, device = "png", width = 15, height = 8, dpi = 300)
 
 
 
@@ -1852,7 +1857,7 @@ Figure_4_final <- ggplot() +
   # Add bathymetry layer FIRST (so it goes on bottom)
   geom_raster(data = rbind(bath_50_df, bath_25_df), 
               aes(x = x, y = y, fill = bathymetry*0.01)) +
-  scale_fill_gradientn(colors = gray.colors(100, alpha = 0.5),
+  scale_fill_gradientn(colors = gray.colors(50, start = 0, end = 1, alpha = 0.6),
                        name = "Bathymetry\n(m)") +
   # Add canopy layer SECOND (so it goes on top)
   new_scale_fill() +
@@ -1875,12 +1880,45 @@ Figure_4_final <- ggplot() +
         legend.title = element_text(size = 14),
         legend.text = element_text(size = 12))
 
-# Display the plot
-print(Figure_4_final)
 
 #ggsave("Figure_4.png", plot = Figure_4_final, device = "png", width = 15, height = 8, dpi = 300)
 
 
+# Figure with darker bathymetry
+#Figure_4_final <- ggplot() +
+#  # Add bathymetry layer FIRST (so it goes on bottom)
+#  geom_raster(data = rbind(bath_50_df, bath_25_df), 
+#              aes(x = x, y = y, fill = bathymetry*0.01)) +
+#  scale_fill_gradientn(colors = scales::alpha(c("black", "gray15", "gray30", "gray45", "gray60", "gray75", "gray90", "white"), 
+#                                               alpha = 0.75),
+#                       name = "Bathymetry\n(m)") +
+#  # Add canopy layer SECOND (so it goes on top)
+#  new_scale_fill() +
+#  geom_raster(data = rbind(canopy_50_df, canopy_25_df), 
+#              aes(x = x, y = y, fill = canopy_height*0.01)) +
+#  scale_fill_gradientn(colors = viridis(100, alpha = 0.9),
+#                       limits = c(0, 1.00),
+#                       name = "Canopy\nHeight (m)") +
+#  facet_wrap(~resolution, ncol = 2) +
+#  coord_equal() +
+#  theme_classic() +
+#  labs(x = "Eastings",
+#       y = "Northings",
+#       subtitle = "Canopy smoothing radius = 0.5 m") +
+#  theme(legend.position = "right",
+#        strip.text = element_text(size = 12, face = "bold"),
+#        axis.text = element_text(size = 10),
+#        axis.title = element_text(size = 12),
+#        plot.subtitle = element_text(size = 16, hjust = 0.5),
+#        legend.title = element_text(size = 14),
+#        legend.text = element_text(size = 12))
+
+# Display the plot
+#windows()
+#print(Figure_4_final)
+#dev.off()
+
+#ggsave("Figure_4_new_darker.png", plot = Figure_4_final, device = "png", width = 15, height = 8, dpi = 300)
 
 #' Process LiDAR data to calculate canopy stats and return key outputs.
 #'
@@ -2161,7 +2199,37 @@ S_Figure_5 <- ggplot(data=canopy_overlap, aes(x=Height_max*0.01, y=nearest_mnl_h
 
 print(S_Figure_5)
   
-#ggsave("S_Figure_5.png", plot = S_Figure_5, device = "png", width = 8, height = 8, dpi = 300)
+  #ggsave("S_Figure_5.png", plot = S_Figure_5, device = "png", width = 8, height = 8, dpi = 300)
+
+# Calculate R-squared value for the linear relationship in S_Figure_5
+cat("\n=== R-squared value for S_Figure_5 (September 2023 vs November 2024 canopy height) ===\n")
+lm_S5 <- lm(nearest_mnl_hgh ~ Height_max, data = canopy_overlap)
+r_squared_S5 <- summary(lm_S5)$r.squared
+adj_r_squared_S5 <- summary(lm_S5)$adj.r.squared
+slope_S5 <- coef(lm_S5)[2]
+intercept_S5 <- coef(lm_S5)[1]
+
+cat(sprintf("R² = %.4f\n", r_squared_S5))
+cat(sprintf("Adjusted R² = %.4f\n", adj_r_squared_S5))
+cat(sprintf("Slope = %.4f\n", slope_S5))
+cat(sprintf("Intercept = %.4f\n", intercept_S5))
+cat(sprintf("Model: November 2024 = %.4f × September 2023 + %.4f\n", slope_S5, intercept_S5))
+cat("\n")
+
+
+# Calculating vertical errors between canopy overlap
+error_summary <- canopy_overlap %>%
+  mutate(error = (Height_max - nearest_mnl_hgh)) %>%  # error in cm
+  summarise(
+    mean_error = mean(error, na.rm = TRUE),
+    sd_error = sd(error, na.rm = TRUE),
+    rmse = sqrt(mean(error^2, na.rm = TRUE)),
+    n = n()
+  ) %>%
+  ungroup()
+
+print(error_summary)
+
 
 
 # loading eelgrass volumetric biomass values from 2023 field work
@@ -2403,7 +2471,7 @@ cat("\n--- Creating Histogram Plot ---\n")
 
 S_Figure_6 <- ggplot(all_heights_df, aes(x = height, fill = Dataset)) +
   geom_histogram(position = "identity", alpha = 0.6, bins = 40) +
-  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Subcircle: " ~ .(subcircle) ~ "m")) +
+  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Smoothing radius: " ~ .(subcircle) ~ "m")) +
   labs(
     x = "Canopy height (m)",
     y = "Frequency"
@@ -2437,7 +2505,7 @@ for (sc_val in subcircle_values) {
   
   diff_df <- as.data.frame(diff_raster * 100, xy = TRUE)
   names(diff_df)[3] <- "difference_cm"
-  diff_df$facet_group <- paste("Canopy (Subcircle:", sc_val, "m)")
+  diff_df$facet_group <- paste("Canopy (Smoothing radius:", sc_val, "m)")
   canopy_diff_df_list[[as.character(sc_val)]] <- diff_df
 }
 canopy_diff_df <- do.call(rbind, canopy_diff_df_list)
@@ -2461,7 +2529,7 @@ all_diff_df <- na.omit(all_diff_df)
 all_diff_df$facet_group <- factor(
   all_diff_df$facet_group,
   levels = c(
-    paste("Canopy (Subcircle:", subcircle_values, "m)"),
+    paste("Canopy (Smoothing radius:", subcircle_values, "m)"),
     "DTM Difference"
   )
 )
@@ -2526,8 +2594,8 @@ print(S_Figure_7B)
 
 
 # Supplementary Figure 7
-S_Figure_7 <- S_Figure_7A + S_Figure_7B
-print(S_Figure_7)
+#S_Figure_7 <- S_Figure_7A + S_Figure_7B
+#print(S_Figure_7)
 #ggsave("S_Figure_7.png", plot = S_Figure_7, width = 24, height = 16, dpi = 300)
 
 
@@ -2584,7 +2652,7 @@ all_coverage_df$coverage_category <- factor(
 # Create the faceted coverage plot
 coverage_plot <- ggplot(all_coverage_df, aes(x = x, y = y, fill = coverage_category)) +
   geom_raster() +
-  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Subcircle: " ~ .(subcircle) ~ "m")) +
+  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Smoothing radius: " ~ .(subcircle) ~ "m")) +
   scale_fill_manual(
     name = "Data Coverage",
     values = c("Both" = "yellow", "50m only" = "red", "25m only" = "blue")
@@ -2651,7 +2719,7 @@ all_coverage_df$coverage_category <- factor(
 # Create the faceted coverage plot
 S_Figure_8A <- ggplot(all_coverage_df, aes(x = x, y = y, fill = coverage_category)) +
   geom_raster() +
-  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Subcircle: " ~ .(subcircle) ~ "m")) +
+  facet_wrap(~ subcircle, labeller = label_bquote(rows = "Smoothing radius: " ~ .(subcircle) ~ "m")) +
   scale_fill_manual(
     name = "Data Coverage",
     values = c("Both" = "yellow", "50m only" = "red", "25m only" = "blue")
@@ -2680,7 +2748,7 @@ coverage_counts <- all_coverage_df %>%
 
 S_Figure_8B <- ggplot(coverage_counts, aes(x = coverage_category, y = cell_count, fill = coverage_category)) +
   geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~ subcircle, labeller = label_bquote("Subcircle: " ~ .(subcircle) ~ "m")) +
+  facet_wrap(~ subcircle, labeller = label_bquote("Smoothing radius: " ~ .(subcircle) ~ "m")) +
   scale_fill_manual(
     name = "Data Coverage",
     values = c("Both" = "yellow", "50m only" = "red", "25m only" = "blue")
@@ -2701,8 +2769,8 @@ S_Figure_8B <- ggplot(coverage_counts, aes(x = coverage_category, y = cell_count
 
 print(S_Figure_8B)
 
-S_Figure_8 <- S_Figure_8A + S_Figure_8B
-print(S_Figure_8)
+#S_Figure_8 <- S_Figure_8A + S_Figure_8B
+#print(S_Figure_8)
 #ggsave("S_Figure_8.png", plot = S_Figure_8, width = 16, height = 8, dpi = 300)
 
 
@@ -3146,6 +3214,25 @@ Figure_5
 # Save the arranged figure as a .tif file
 #ggsave("Figure_5_new.png", plot = Figure_5, width = 8, height = 14, dpi = 300)
 
+# Calculating R-squared values for each linear model
+r_squared_results <- LiDAR_relationship %>%
+  group_by(Dataset, data) %>%
+  summarize(
+    model_fit = list(lm(Elevation ~ Validation_data)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    r_squared = sapply(model_fit, function(m) summary(m)$r.squared),
+    adj_r_squared = sapply(model_fit, function(m) summary(m)$adj.r.squared),
+    intercept = sapply(model_fit, function(m) coef(m)[1]),
+    slope = sapply(model_fit, function(m) coef(m)[2])
+  ) %>%
+  select(-model_fit)
+
+print(r_squared_results)
+cat("\n")
+
+
 # Calculating vertical errors
 LiDAR_relationship$data <- as.factor(LiDAR_relationship$data)
 LiDAR_relationship$Dataset <- as.factor(LiDAR_relationship$Dataset)
@@ -3199,7 +3286,7 @@ r <- rasterize(cbind(x, y), r, z, fun = mean)
 
 # Plot raster with scale bar
 # Set up the PNG file to save the plot
-png("C:/Users/CPL/NIVA/Seabee - Charlie_Ohlberg/SeaBee LiDAR ZOSMA 2024/R/S_Figure_1_new.png", 
+png("C:/Users/seabee/OneDrive - NIVA/LiDAR/Charlie_Ohlberg/SeaBee LiDAR ZOSMA 2024/R/S_Figure_1_new.png", 
     width = 8, height = 8, units = "in", res = 200)
 
 # Set margins and outer margins inside the PNG device
